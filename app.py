@@ -111,7 +111,15 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             if 'voucher_ids' in event_data:
                 del event_data['voucher_ids']
                 
+            # Ensure required fields are present
+            required_fields = ['start_date', 'end_date', 'name', 'description']
+            for field in required_fields:
+                if field not in event_data:
+                    print(f"Warning: Missing required field '{field}' in event data")
+                    print(f"Event data: {event_data}")
+                
             formatted_event_data = format_data_for_api(event_data)
+            print(f"Creating event with data: {formatted_event_data}")
             
             # Create the event in target box office using the correct endpoint
             event_create_url = f"{TICKET_TAILOR_API_BASE}/event_series/{new_series_id}/events"
