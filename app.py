@@ -16,6 +16,22 @@ def get_auth_header(api_key):
         'Accept': 'application/json'
     }
 
+def format_data_for_api(data):
+    """Format data to match API requirements"""
+    formatted_data = {}
+    for key, value in data.items():
+        if key in ['voucher_ids', 'ticket_type_ids']:
+            # Ensure array fields are properly formatted
+            if isinstance(value, str):
+                formatted_data[key] = value.split(',') if value else []
+            elif value is None:
+                formatted_data[key] = []
+            else:
+                formatted_data[key] = value
+        else:
+            formatted_data[key] = value
+    return formatted_data
+
 def get_event_series(source_api_key):
     """Fetch event series from source box office"""
     try:
@@ -47,11 +63,14 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         if 'data' in series_data:
             series_data = series_data['data']
 
+        # Format the data for API
+        formatted_series_data = format_data_for_api(series_data)
+
         # Create the event series in target box office
         create_response = requests.post(
             f"{TICKET_TAILOR_API_BASE}/event_series",
             headers=get_auth_header(target_api_key),
-            data=series_data  # Changed from json to data for form-data
+            data=formatted_series_data
         )
         create_response.raise_for_status()
         new_series_data = create_response.json()
@@ -75,10 +94,12 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             # Create the event in target box office
             event_data = {k: v for k, v in event.items() if k != 'id'}
             event_data['event_series_id'] = new_series_id
+            formatted_event_data = format_data_for_api(event_data)
+            
             new_event_response = requests.post(
                 f"{TICKET_TAILOR_API_BASE}/events",
                 headers=get_auth_header(target_api_key),
-                data=event_data  # Changed from json to data for form-data
+                data=formatted_event_data
             )
             new_event_response.raise_for_status()
             new_event_data = new_event_response.json()
@@ -100,10 +121,12 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             for ticket_type in ticket_types:
                 ticket_type_data = {k: v for k, v in ticket_type.items() if k != 'id'}
                 ticket_type_data['event_id'] = new_event_id
+                formatted_ticket_type_data = format_data_for_api(ticket_type_data)
+                
                 requests.post(
                     f"{TICKET_TAILOR_API_BASE}/ticket_types",
                     headers=get_auth_header(target_api_key),
-                    data=ticket_type_data  # Changed from json to data for form-data
+                    data=formatted_ticket_type_data
                 ).raise_for_status()
 
         return {"success": True, "new_series_id": new_series_id}
