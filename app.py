@@ -51,7 +51,7 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         create_response = requests.post(
             f"{TICKET_TAILOR_API_BASE}/event_series",
             headers=get_auth_header(target_api_key),
-            json=series_data
+            data=series_data  # Changed from json to data for form-data
         )
         create_response.raise_for_status()
         new_series_data = create_response.json()
@@ -78,7 +78,7 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             new_event_response = requests.post(
                 f"{TICKET_TAILOR_API_BASE}/events",
                 headers=get_auth_header(target_api_key),
-                json=event_data
+                data=event_data  # Changed from json to data for form-data
             )
             new_event_response.raise_for_status()
             new_event_data = new_event_response.json()
@@ -103,7 +103,7 @@ def copy_event_series(source_api_key, target_api_key, series_id):
                 requests.post(
                     f"{TICKET_TAILOR_API_BASE}/ticket_types",
                     headers=get_auth_header(target_api_key),
-                    json=ticket_type_data
+                    data=ticket_type_data  # Changed from json to data for form-data
                 ).raise_for_status()
 
         return {"success": True, "new_series_id": new_series_id}
