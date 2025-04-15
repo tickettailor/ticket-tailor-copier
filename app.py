@@ -12,9 +12,18 @@ TICKET_TAILOR_API_BASE = "https://api.tickettailor.com/v1"
 def get_auth_header(api_key):
     """Create the Authorization header for Ticket Tailor API requests"""
     return {
-        'Authorization': f'Basic {base64.b64encode(api_key.encode()).decode()}',
         'Accept': 'application/json'
     }
+
+def make_api_request(method, url, api_key, **kwargs):
+    """Make an API request with proper authentication"""
+    return requests.request(
+        method,
+        url,
+        auth=(api_key, ''),  # API key as username, empty password
+        headers=get_auth_header(api_key),
+        **kwargs
+    )
 
 def format_data_for_api(data):
     """Format data to match API requirements"""
@@ -39,10 +48,7 @@ def get_event_series(source_api_key):
     """Fetch event series from source box office"""
     try:
         url = f"{TICKET_TAILOR_API_BASE}/event_series"
-        response = requests.get(
-            url,
-            headers=get_auth_header(source_api_key)
-        )
+        response = make_api_request('GET', url, source_api_key)
         response.raise_for_status()
         data = response.json()
         # Handle pagination if needed
@@ -62,10 +68,7 @@ def copy_event_series(source_api_key, target_api_key, series_id):
     try:
         # Get the event series details
         series_url = f"{TICKET_TAILOR_API_BASE}/event_series/{series_id}"
-        series_response = requests.get(
-            series_url,
-            headers=get_auth_header(source_api_key)
-        )
+        series_response = make_api_request('GET', series_url, source_api_key)
         series_response.raise_for_status()
         series_data = series_response.json()
         if 'data' in series_data:
@@ -80,11 +83,7 @@ def copy_event_series(source_api_key, target_api_key, series_id):
 
         # Create the event series in target box office
         create_url = f"{TICKET_TAILOR_API_BASE}/event_series"
-        create_response = requests.post(
-            create_url,
-            headers=get_auth_header(target_api_key),
-            data=formatted_series_data
-        )
+        create_response = make_api_request('POST', create_url, target_api_key, data=formatted_series_data)
         create_response.raise_for_status()
         new_series_data = create_response.json()
         if 'data' in new_series_data:
@@ -94,11 +93,7 @@ def copy_event_series(source_api_key, target_api_key, series_id):
 
         # Get all events in the series
         events_url = f"{TICKET_TAILOR_API_BASE}/events"
-        events_response = requests.get(
-            events_url,
-            headers=get_auth_header(source_api_key),
-            params={'event_series_id': series_id}
-        )
+        events_response = make_api_request('GET', events_url, source_api_key, params={'event_series_id': series_id})
         events_response.raise_for_status()
         events_data = events_response.json()
         events = events_data['data'] if 'data' in events_data else events_data
@@ -116,11 +111,7 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             formatted_event_data = format_data_for_api(event_data)
             
             event_create_url = f"{TICKET_TAILOR_API_BASE}/events"
-            new_event_response = requests.post(
-                event_create_url,
-                headers=get_auth_header(target_api_key),
-                data=formatted_event_data
-            )
+            new_event_response = make_api_request('POST', event_create_url, target_api_key, data=formatted_event_data)
             new_event_response.raise_for_status()
             new_event_data = new_event_response.json()
             if 'data' in new_event_data:
@@ -130,11 +121,7 @@ def copy_event_series(source_api_key, target_api_key, series_id):
 
             # Get and copy ticket types
             ticket_types_url = f"{TICKET_TAILOR_API_BASE}/ticket_types"
-            ticket_types_response = requests.get(
-                ticket_types_url,
-                headers=get_auth_header(source_api_key),
-                params={'event_id': event['id']}
-            )
+            ticket_types_response = make_api_request('GET', ticket_types_url, source_api_key, params={'event_id': event['id']})
             ticket_types_response.raise_for_status()
             ticket_types_data = ticket_types_response.json()
             ticket_types = ticket_types_data['data'] if 'data' in ticket_types_data else ticket_types_data
@@ -150,11 +137,7 @@ def copy_event_series(source_api_key, target_api_key, series_id):
                 formatted_ticket_type_data = format_data_for_api(ticket_type_data)
                 
                 ticket_type_create_url = f"{TICKET_TAILOR_API_BASE}/ticket_types"
-                requests.post(
-                    ticket_type_create_url,
-                    headers=get_auth_header(target_api_key),
-                    data=formatted_ticket_type_data
-                ).raise_for_status()
+                make_api_request('POST', ticket_type_create_url, target_api_key, data=formatted_ticket_type_data).raise_for_status()
 
         return {"success": True, "new_series_id": new_series_id}
     except requests.exceptions.RequestException as e:
