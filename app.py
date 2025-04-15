@@ -21,13 +21,16 @@ def format_data_for_api(data):
     formatted_data = {}
     for key, value in data.items():
         if key in ['voucher_ids', 'ticket_type_ids']:
-            # Ensure array fields are properly formatted
-            if isinstance(value, str):
-                formatted_data[key] = value.split(',') if value else []
+            # For array fields, send each value as a separate key
+            if isinstance(value, (list, tuple)):
+                for i, v in enumerate(value):
+                    formatted_data[f"{key}[]"] = v
+            elif isinstance(value, str):
+                values = value.split(',')
+                for i, v in enumerate(values):
+                    formatted_data[f"{key}[]"] = v
             elif value is None:
-                formatted_data[key] = []
-            else:
-                formatted_data[key] = value
+                formatted_data[f"{key}[]"] = ""
         else:
             formatted_data[key] = value
     return formatted_data
