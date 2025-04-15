@@ -111,16 +111,24 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             if 'voucher_ids' in event_data:
                 del event_data['voucher_ids']
             
-            # Flatten date fields
+            # Flatten date fields and ensure correct time format
             if 'start' in event_data:
                 event_data['start_date'] = event_data['start']['date']
-                event_data['start_time'] = event_data['start']['time']
+                # Ensure time is in H:i:s format
+                start_time = event_data['start']['time']
+                if len(start_time.split(':')) == 2:  # If time is in H:i format
+                    start_time += ':00'  # Add seconds
+                event_data['start_time'] = start_time
                 event_data['start_timezone'] = event_data['start']['timezone']
                 del event_data['start']
             
             if 'end' in event_data:
                 event_data['end_date'] = event_data['end']['date']
-                event_data['end_time'] = event_data['end']['time']
+                # Ensure time is in H:i:s format
+                end_time = event_data['end']['time']
+                if len(end_time.split(':')) == 2:  # If time is in H:i format
+                    end_time += ':00'  # Add seconds
+                event_data['end_time'] = end_time
                 event_data['end_timezone'] = event_data['end']['timezone']
                 del event_data['end']
                 
