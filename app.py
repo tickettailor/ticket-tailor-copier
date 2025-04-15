@@ -38,8 +38,9 @@ def format_data_for_api(data):
 def get_event_series(source_api_key):
     """Fetch event series from source box office"""
     try:
+        url = f"{TICKET_TAILOR_API_BASE}/event_series"
         response = requests.get(
-            f"{TICKET_TAILOR_API_BASE}/event_series",
+            url,
             headers=get_auth_header(source_api_key)
         )
         response.raise_for_status()
@@ -50,15 +51,19 @@ def get_event_series(source_api_key):
         return data
     except requests.exceptions.RequestException as e:
         if hasattr(e.response, 'text'):
-            return {"error": f"API Error: {e.response.text}"}
+            error_msg = f"API Error: {e.response.text}"
+            if e.response.status_code == 404:
+                error_msg += f" (URL: {url})"
+            return {"error": error_msg}
         return {"error": str(e)}
 
 def copy_event_series(source_api_key, target_api_key, series_id):
     """Copy an event series from source to target box office"""
     try:
         # Get the event series details
+        series_url = f"{TICKET_TAILOR_API_BASE}/event_series/{series_id}"
         series_response = requests.get(
-            f"{TICKET_TAILOR_API_BASE}/event_series/{series_id}",
+            series_url,
             headers=get_auth_header(source_api_key)
         )
         series_response.raise_for_status()
@@ -74,8 +79,9 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         formatted_series_data = format_data_for_api(series_data)
 
         # Create the event series in target box office
+        create_url = f"{TICKET_TAILOR_API_BASE}/event_series"
         create_response = requests.post(
-            f"{TICKET_TAILOR_API_BASE}/event_series",
+            create_url,
             headers=get_auth_header(target_api_key),
             data=formatted_series_data
         )
@@ -87,8 +93,9 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             new_series_id = new_series_data['id']
 
         # Get all events in the series
+        events_url = f"{TICKET_TAILOR_API_BASE}/events"
         events_response = requests.get(
-            f"{TICKET_TAILOR_API_BASE}/events",
+            events_url,
             headers=get_auth_header(source_api_key),
             params={'event_series_id': series_id}
         )
@@ -108,8 +115,9 @@ def copy_event_series(source_api_key, target_api_key, series_id):
                 
             formatted_event_data = format_data_for_api(event_data)
             
+            event_create_url = f"{TICKET_TAILOR_API_BASE}/events"
             new_event_response = requests.post(
-                f"{TICKET_TAILOR_API_BASE}/events",
+                event_create_url,
                 headers=get_auth_header(target_api_key),
                 data=formatted_event_data
             )
@@ -121,8 +129,9 @@ def copy_event_series(source_api_key, target_api_key, series_id):
                 new_event_id = new_event_data['id']
 
             # Get and copy ticket types
+            ticket_types_url = f"{TICKET_TAILOR_API_BASE}/ticket_types"
             ticket_types_response = requests.get(
-                f"{TICKET_TAILOR_API_BASE}/ticket_types",
+                ticket_types_url,
                 headers=get_auth_header(source_api_key),
                 params={'event_id': event['id']}
             )
@@ -140,8 +149,9 @@ def copy_event_series(source_api_key, target_api_key, series_id):
                     
                 formatted_ticket_type_data = format_data_for_api(ticket_type_data)
                 
+                ticket_type_create_url = f"{TICKET_TAILOR_API_BASE}/ticket_types"
                 requests.post(
-                    f"{TICKET_TAILOR_API_BASE}/ticket_types",
+                    ticket_type_create_url,
                     headers=get_auth_header(target_api_key),
                     data=formatted_ticket_type_data
                 ).raise_for_status()
@@ -149,7 +159,12 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         return {"success": True, "new_series_id": new_series_id}
     except requests.exceptions.RequestException as e:
         if hasattr(e.response, 'text'):
-            return {"error": f"API Error: {e.response.text}"}
+            error_msg = f"API Error: {e.response.text}"
+            if e.response.status_code == 404:
+                # Get the URL from the exception
+                url = e.response.url
+                error_msg += f" (URL: {url})"
+            return {"error": error_msg}
         return {"error": str(e)}
 
 @app.route('/')
