@@ -142,11 +142,10 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         return {"success": True, "new_series_id": new_series_id}
     except requests.exceptions.RequestException as e:
         if hasattr(e.response, 'text'):
-            error_msg = f"API Error: {e.response.text}"
+            method = e.response.request.method
+            error_msg = f"API Error ({method}): {e.response.text}"
             if e.response.status_code == 404:
-                # Get the URL from the exception
-                url = e.response.url
-                error_msg += f" (URL: {url})"
+                error_msg += f" (URL: {e.response.url})"
             return {"error": error_msg}
         return {"error": str(e)}
 
