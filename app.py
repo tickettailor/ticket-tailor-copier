@@ -150,6 +150,35 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             return {"error": error_msg}
         return {"error": str(e)}
 
+def test_api_connection(api_key):
+    """Test the API connection and key"""
+    try:
+        # Try to get the box office details first
+        url = f"{TICKET_TAILOR_API_BASE}/box_office"
+        print(f"\nMaking GET request to: {url}")
+        response = make_api_request('GET', url, api_key)
+        response.raise_for_status()
+        box_office_data = response.json()
+        print(f"Box Office Data: {box_office_data}")
+
+        # Then try to get events
+        events_url = f"{TICKET_TAILOR_API_BASE}/events"
+        print(f"\nMaking GET request to: {events_url}")
+        events_response = make_api_request('GET', events_url, api_key)
+        events_response.raise_for_status()
+        events_data = events_response.json()
+        print(f"Events Data: {events_data}")
+
+        return True
+    except requests.exceptions.RequestException as e:
+        if hasattr(e.response, 'text'):
+            method = e.response.request.method
+            error_msg = f"API Error ({method}): {e.response.text}"
+            if e.response.status_code == 404:
+                error_msg += f" (URL: {e.response.url})"
+            print(f"Error: {error_msg}")
+        return False
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -179,6 +208,17 @@ def copy_series():
     if "error" in result:
         return jsonify(result), 500
     return jsonify(result)
+
+@app.route('/test-api', methods=['GET'])
+def test_api():
+    source_api_key = request.args.get('source_api_key')
+    if not source_api_key:
+        return jsonify({"error": "Source API key is required"}), 400
+    
+    result = test_api_connection(source_api_key)
+    if result:
+        return jsonify({"success": True, "message": "API connection successful"})
+    return jsonify({"error": "API connection failed"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True) 
