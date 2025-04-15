@@ -75,15 +75,9 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         if 'data' in series_data:
             series_data = series_data['data']
 
-        # Create the event series in target box office with all fields
+        # Create the event series in target box office with all fields except voucher_ids
         create_url = f"{TICKET_TAILOR_API_BASE}/event_series"
-        series_create_data = {k: v for k, v in series_data.items() if k != 'id'}
-        # Handle voucher_ids
-        if 'voucher_ids' in series_create_data:
-            if isinstance(series_create_data['voucher_ids'], str):
-                series_create_data['voucher_ids'] = series_create_data['voucher_ids'].split(',')
-            elif series_create_data['voucher_ids'] is None:
-                series_create_data['voucher_ids'] = []
+        series_create_data = {k: v for k, v in series_data.items() if k not in ['id', 'voucher_ids']}
         create_response = make_api_request('POST', create_url, target_api_key, data=series_create_data)
         create_response.raise_for_status()
         print(f"API Success (POST, target): Created new event series")
@@ -103,14 +97,8 @@ def copy_event_series(source_api_key, target_api_key, series_id):
 
         # Copy each event and its ticket types
         for event in events:
-            # Create the event in target box office with all fields
-            event_data = {k: v for k, v in event.items() if k != 'id'}
-            # Handle voucher_ids
-            if 'voucher_ids' in event_data:
-                if isinstance(event_data['voucher_ids'], str):
-                    event_data['voucher_ids'] = event_data['voucher_ids'].split(',')
-                elif event_data['voucher_ids'] is None:
-                    event_data['voucher_ids'] = []
+            # Create the event in target box office with all fields except voucher_ids
+            event_data = {k: v for k, v in event.items() if k not in ['id', 'voucher_ids']}
             
             # Flatten date fields
             if 'start' in event_data:
@@ -137,14 +125,8 @@ def copy_event_series(source_api_key, target_api_key, series_id):
 
             # Copy ticket types from the event data
             for ticket_type in event['ticket_types']:
-                # Create ticket type with all fields
-                ticket_type_data = {k: v for k, v in ticket_type.items() if k != 'id'}
-                # Handle voucher_ids
-                if 'voucher_ids' in ticket_type_data:
-                    if isinstance(ticket_type_data['voucher_ids'], str):
-                        ticket_type_data['voucher_ids'] = ticket_type_data['voucher_ids'].split(',')
-                    elif ticket_type_data['voucher_ids'] is None:
-                        ticket_type_data['voucher_ids'] = []
+                # Create ticket type with all fields except voucher_ids
+                ticket_type_data = {k: v for k, v in ticket_type.items() if k not in ['id', 'voucher_ids']}
                 
                 # Create ticket type in the event series
                 ticket_type_create_url = f"{TICKET_TAILOR_API_BASE}/event_series/{new_series_id}/ticket_types"
