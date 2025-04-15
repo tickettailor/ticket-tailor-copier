@@ -1,0 +1,126 @@
+from flask import Flask, render_template, request, jsonify
+import requests
+import os
+from dotenv import load_dotenv
+import base64
+
+app = Flask(__name__)
+load_dotenv()
+
+TICKET_TAILOR_API_BASE = "https://api.tickettailor.com/v1"
+
+def get_auth_header(api_key):
+    """Create the Authorization header for Ticket Tailor API requests"""
+    return {
+        'Authorization': f'Basic {base64.b64encode(api_key.encode()).decode()}',
+        'Accept': 'application/json'
+    }
+
+def get_event_series(source_api_key):
+    """Fetch event series from source box office"""
+    try:
+        response = requests.get(
+            f"{TICKET_TAILOR_API_BASE}/event-series",
+            headers=get_auth_header(source_api_key)
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return {"error": str(e)}
+
+def copy_event_series(source_api_key, target_api_key, series_id):
+    """Copy an event series from source to target box office"""
+    try:
+        # Get the event series details
+        series_response = requests.get(
+            f"{TICKET_TAILOR_API_BASE}/event-series/{series_id}",
+            headers=get_auth_header(source_api_key)
+        )
+        series_response.raise_for_status()
+        series_data = series_response.json()
+
+        # Create the event series in target box office
+        create_response = requests.post(
+            f"{TICKET_TAILOR_API_BASE}/event-series",
+            headers=get_auth_header(target_api_key),
+            json=series_data
+        )
+        create_response.raise_for_status()
+        new_series_id = create_response.json()['id']
+
+        # Get all events in the series
+        events_response = requests.get(
+            f"{TICKET_TAILOR_API_BASE}/events",
+            headers=get_auth_header(source_api_key),
+            params={'event_series_id': series_id}
+        )
+        events_response.raise_for_status()
+        events = events_response.json()
+
+        # Copy each event and its ticket types
+        for event in events:
+            # Create the event in target box office
+            event_data = {k: v for k, v in event.items() if k != 'id'}
+            event_data['event_series_id'] = new_series_id
+            new_event_response = requests.post(
+                f"{TICKET_TAILOR_API_BASE}/events",
+                headers=get_auth_header(target_api_key),
+                json=event_data
+            )
+            new_event_response.raise_for_status()
+            new_event_id = new_event_response.json()['id']
+
+            # Get and copy ticket types
+            ticket_types_response = requests.get(
+                f"{TICKET_TAILOR_API_BASE}/ticket-types",
+                headers=get_auth_header(source_api_key),
+                params={'event_id': event['id']}
+            )
+            ticket_types_response.raise_for_status()
+            ticket_types = ticket_types_response.json()
+
+            for ticket_type in ticket_types:
+                ticket_type_data = {k: v for k, v in ticket_type.items() if k != 'id'}
+                ticket_type_data['event_id'] = new_event_id
+                requests.post(
+                    f"{TICKET_TAILOR_API_BASE}/ticket-types",
+                    headers=get_auth_header(target_api_key),
+                    json=ticket_type_data
+                ).raise_for_status()
+
+        return {"success": True, "new_series_id": new_series_id}
+    except requests.exceptions.RequestException as e:
+        return {"error": str(e)}
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/api/event-series', methods=['GET'])
+def list_event_series():
+    source_api_key = request.args.get('source_api_key')
+    if not source_api_key:
+        return jsonify({"error": "Source API key is required"}), 400
+    
+    result = get_event_series(source_api_key)
+    if "error" in result:
+        return jsonify(result), 500
+    return jsonify(result)
+
+@app.route('/api/copy-event-series', methods=['POST'])
+def copy_series():
+    data = request.json
+    source_api_key = data.get('source_api_key')
+    target_api_key = data.get('target_api_key')
+    series_id = data.get('series_id')
+
+    if not all([source_api_key, target_api_key, series_id]):
+        return jsonify({"error": "Missing required parameters"}), 400
+
+    result = copy_event_series(source_api_key, target_api_key, series_id)
+    if "error" in result:
+        return jsonify(result), 500
+    return jsonify(result)
+
+if __name__ == '__main__':
+    app.run(debug=True) 

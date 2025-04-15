@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket Tailor Copier</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .loading {
+            display: none;
+        }
+        .error-message {
+            color: #dc3545;
+            display: none;
+        }
+        .success-message {
+            color: #198754;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Ticket Tailor Copier</h1>
+        
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Source Box Office</h5>
+                        <div class="mb-3">
+                            <label for="sourceApiKey" class="form-label">API Key</label>
+                            <input type="password" class="form-control" id="sourceApiKey" placeholder="Enter source API key">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Target Box Office</h5>
+                        <div class="mb-3">
+                            <label for="targetApiKey" class="form-label">API Key</label>
+                            <input type="password" class="form-control" id="targetApiKey" placeholder="Enter target API key">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-grid gap-2 mb-4">
+            <button id="loadSeries" class="btn btn-primary">Load Event Series</button>
+        </div>
+
+        <div class="alert alert-danger error-message" role="alert"></div>
+        <div class="alert alert-success success-message" role="alert"></div>
+
+        <div class="loading text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+
+        <div id="seriesList" class="list-group"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const loadSeriesBtn = document.getElementById('loadSeries');
+            const seriesList = document.getElementById('seriesList');
+            const errorMessage = document.querySelector('.error-message');
+            const successMessage = document.querySelector('.success-message');
+            const loading = document.querySelector('.loading');
+
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+                successMessage.style.display = 'none';
+            }
+
+            function showSuccess(message) {
+                successMessage.textContent = message;
+                successMessage.style.display = 'block';
+                errorMessage.style.display = 'none';
+            }
+
+            function toggleLoading(show) {
+                loading.style.display = show ? 'block' : 'none';
+            }
+
+            loadSeriesBtn.addEventListener('click', async function() {
+                const sourceApiKey = document.getElementById('sourceApiKey').value;
+                if (!sourceApiKey) {
+                    showError('Please enter source API key');
+                    return;
+                }
+
+                toggleLoading(true);
+                seriesList.innerHTML = '';
+                errorMessage.style.display = 'none';
+                successMessage.style.display = 'none';
+
+                try {
+                    const response = await fetch(`/api/event-series?source_api_key=${encodeURIComponent(sourceApiKey)}`);
+                    const data = await response.json();
+
+                    if (data.error) {
+                        showError(data.error);
+                        return;
+                    }
+
+                    if (data.length === 0) {
+                        seriesList.innerHTML = '<div class="list-group-item">No event series found</div>';
+                        return;
+                    }
+
+                    data.forEach(series => {
+                        const item = document.createElement('div');
+                        item.className = 'list-group-item d-flex justify-content-between align-items-center';
+                        item.innerHTML = `
+                            ${series.name}
+                            <button class="btn btn-sm btn-success copy-btn" data-series-id="${series.id}">
+                                Copy
+                            </button>
+                        `;
+                        seriesList.appendChild(item);
+                    });
+
+                    // Add copy event listeners
+                    document.querySelectorAll('.copy-btn').forEach(btn => {
+                        btn.addEventListener('click', async function() {
+                            const seriesId = this.dataset.seriesId;
+                            const targetApiKey = document.getElementById('targetApiKey').value;
+
+                            if (!targetApiKey) {
+                                showError('Please enter target API key');
+                                return;
+                            }
+
+                            toggleLoading(true);
+                            try {
+                                const response = await fetch('/api/copy-event-series', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        source_api_key: sourceApiKey,
+                                        target_api_key: targetApiKey,
+                                        series_id: seriesId
+                                    })
+                                });
+
+                                const result = await response.json();
+                                if (result.error) {
+                                    showError(result.error);
+                                } else {
+                                    showSuccess(`Successfully copied event series! New series ID: ${result.new_series_id}`);
+                                }
+                            } catch (error) {
+                                showError('Failed to copy event series');
+                            } finally {
+                                toggleLoading(false);
+                            }
+                        });
+                    });
+                } catch (error) {
+                    showError('Failed to load event series');
+                } finally {
+                    toggleLoading(false);
+                }
+            });
+        });
+    </script>
+</body>
+</html> 
