@@ -146,15 +146,8 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             else:
                 new_event_id = new_event_data['id']
 
-            # Get and copy ticket types
-            ticket_types_url = f"{TICKET_TAILOR_API_BASE}/ticket_types"
-            ticket_types_response = make_api_request('GET', ticket_types_url, source_api_key, params={'event_id': event['id']})
-            ticket_types_response.raise_for_status()
-            print(f"API Success (GET, source): Retrieved ticket types for event {event['id']}")
-            ticket_types_data = ticket_types_response.json()
-            ticket_types = ticket_types_data['data'] if 'data' in ticket_types_data else ticket_types_data
-
-            for ticket_type in ticket_types:
+            # Copy ticket types from the event data
+            for ticket_type in event['ticket_types']:
                 ticket_type_data = {k: v for k, v in ticket_type.items() if k != 'id'}
                 ticket_type_data['event_id'] = new_event_id
                 
@@ -164,7 +157,8 @@ def copy_event_series(source_api_key, target_api_key, series_id):
                     
                 formatted_ticket_type_data = format_data_for_api(ticket_type_data)
                 
-                ticket_type_create_url = f"{TICKET_TAILOR_API_BASE}/ticket_types"
+                # Create ticket type in the new event
+                ticket_type_create_url = f"{TICKET_TAILOR_API_BASE}/events/{new_event_id}/ticket_types"
                 make_api_request('POST', ticket_type_create_url, target_api_key, data=formatted_ticket_type_data).raise_for_status()
                 print(f"API Success (POST, target): Created ticket type for event {new_event_id}")
 
