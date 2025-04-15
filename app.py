@@ -110,13 +110,19 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             # Remove voucher_ids from event data
             if 'voucher_ids' in event_data:
                 del event_data['voucher_ids']
-                
-            # Ensure required fields are present
-            required_fields = ['start_date', 'end_date', 'name', 'description']
-            for field in required_fields:
-                if field not in event_data:
-                    print(f"Warning: Missing required field '{field}' in event data")
-                    print(f"Event data: {event_data}")
+            
+            # Flatten date fields
+            if 'start' in event_data:
+                event_data['start_date'] = event_data['start']['date']
+                event_data['start_time'] = event_data['start']['time']
+                event_data['start_timezone'] = event_data['start']['timezone']
+                del event_data['start']
+            
+            if 'end' in event_data:
+                event_data['end_date'] = event_data['end']['date']
+                event_data['end_time'] = event_data['end']['time']
+                event_data['end_timezone'] = event_data['end']['timezone']
+                del event_data['end']
                 
             formatted_event_data = format_data_for_api(event_data)
             print(f"Creating event with data: {formatted_event_data}")
