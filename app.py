@@ -70,6 +70,7 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         series_url = f"{TICKET_TAILOR_API_BASE}/event_series/{series_id}"
         series_response = make_api_request('GET', series_url, source_api_key)
         series_response.raise_for_status()
+        print(f"API Success (GET, source): Retrieved event series {series_id}")
         series_data = series_response.json()
         if 'data' in series_data:
             series_data = series_data['data']
@@ -85,6 +86,7 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         create_url = f"{TICKET_TAILOR_API_BASE}/event_series"
         create_response = make_api_request('POST', create_url, target_api_key, data=formatted_series_data)
         create_response.raise_for_status()
+        print(f"API Success (POST, target): Created new event series")
         new_series_data = create_response.json()
         if 'data' in new_series_data:
             new_series_id = new_series_data['data']['id']
@@ -95,6 +97,7 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         events_url = f"{TICKET_TAILOR_API_BASE}/events"
         events_response = make_api_request('GET', events_url, source_api_key, params={'event_series_id': series_id})
         events_response.raise_for_status()
+        print(f"API Success (GET, source): Retrieved events for series {series_id}")
         events_data = events_response.json()
         events = events_data['data'] if 'data' in events_data else events_data
 
@@ -110,9 +113,11 @@ def copy_event_series(source_api_key, target_api_key, series_id):
                 
             formatted_event_data = format_data_for_api(event_data)
             
-            event_create_url = f"{TICKET_TAILOR_API_BASE}/events"
+            # Create the event in target box office using the correct endpoint
+            event_create_url = f"{TICKET_TAILOR_API_BASE}/event_series/{new_series_id}/events"
             new_event_response = make_api_request('POST', event_create_url, target_api_key, data=formatted_event_data)
             new_event_response.raise_for_status()
+            print(f"API Success (POST, target): Created new event in series {new_series_id}")
             new_event_data = new_event_response.json()
             if 'data' in new_event_data:
                 new_event_id = new_event_data['data']['id']
@@ -123,6 +128,7 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             ticket_types_url = f"{TICKET_TAILOR_API_BASE}/ticket_types"
             ticket_types_response = make_api_request('GET', ticket_types_url, source_api_key, params={'event_id': event['id']})
             ticket_types_response.raise_for_status()
+            print(f"API Success (GET, source): Retrieved ticket types for event {event['id']}")
             ticket_types_data = ticket_types_response.json()
             ticket_types = ticket_types_data['data'] if 'data' in ticket_types_data else ticket_types_data
 
@@ -138,12 +144,16 @@ def copy_event_series(source_api_key, target_api_key, series_id):
                 
                 ticket_type_create_url = f"{TICKET_TAILOR_API_BASE}/ticket_types"
                 make_api_request('POST', ticket_type_create_url, target_api_key, data=formatted_ticket_type_data).raise_for_status()
+                print(f"API Success (POST, target): Created ticket type for event {new_event_id}")
 
         return {"success": True, "new_series_id": new_series_id}
     except requests.exceptions.RequestException as e:
         if hasattr(e.response, 'text'):
             method = e.response.request.method
-            error_msg = f"API Error ({method}): {e.response.text}"
+            # Determine which API key was used
+            api_key_used = source_api_key if e.response.request.url.endswith(f"/{series_id}") or "event_series_id" in str(e.response.request.url) else target_api_key
+            api_type = "source" if api_key_used == source_api_key else "target"
+            error_msg = f"API Error ({method}, {api_type}): {e.response.text}"
             if e.response.status_code == 404:
                 error_msg += f" (URL: {e.response.url})"
             return {"error": error_msg}
