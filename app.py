@@ -66,6 +66,10 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         if 'data' in series_data:
             series_data = series_data['data']
 
+        # Remove voucher_ids from series data
+        if 'voucher_ids' in series_data:
+            del series_data['voucher_ids']
+
         # Format the data for API
         formatted_series_data = format_data_for_api(series_data)
 
@@ -97,6 +101,11 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             # Create the event in target box office
             event_data = {k: v for k, v in event.items() if k != 'id'}
             event_data['event_series_id'] = new_series_id
+            
+            # Remove voucher_ids from event data
+            if 'voucher_ids' in event_data:
+                del event_data['voucher_ids']
+                
             formatted_event_data = format_data_for_api(event_data)
             
             new_event_response = requests.post(
@@ -124,6 +133,11 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             for ticket_type in ticket_types:
                 ticket_type_data = {k: v for k, v in ticket_type.items() if k != 'id'}
                 ticket_type_data['event_id'] = new_event_id
+                
+                # Remove voucher_ids from ticket type data
+                if 'voucher_ids' in ticket_type_data:
+                    del ticket_type_data['voucher_ids']
+                    
                 formatted_ticket_type_data = format_data_for_api(ticket_type_data)
                 
                 requests.post(
