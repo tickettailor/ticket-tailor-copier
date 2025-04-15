@@ -75,16 +75,10 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         if 'data' in series_data:
             series_data = series_data['data']
 
-        # Remove voucher_ids from series data
-        if 'voucher_ids' in series_data:
-            del series_data['voucher_ids']
-
-        # Format the data for API
-        formatted_series_data = format_data_for_api(series_data)
-
-        # Create the event series in target box office
+        # Create the event series in target box office with all fields
         create_url = f"{TICKET_TAILOR_API_BASE}/event_series"
-        create_response = make_api_request('POST', create_url, target_api_key, data=formatted_series_data)
+        series_create_data = {k: v for k, v in series_data.items() if k != 'id'}
+        create_response = make_api_request('POST', create_url, target_api_key, data=series_create_data)
         create_response.raise_for_status()
         print(f"API Success (POST, target): Created new event series")
         new_series_data = create_response.json()
@@ -103,41 +97,23 @@ def copy_event_series(source_api_key, target_api_key, series_id):
 
         # Copy each event and its ticket types
         for event in events:
-            # Create the event in target box office
+            # Create the event in target box office with all fields
             event_data = {k: v for k, v in event.items() if k != 'id'}
-            event_data['event_series_id'] = new_series_id
-            
-            # Remove voucher_ids from event data
-            if 'voucher_ids' in event_data:
-                del event_data['voucher_ids']
-            
-            # Flatten date fields and ensure correct time format
+            # Flatten date fields
             if 'start' in event_data:
                 event_data['start_date'] = event_data['start']['date']
-                # Ensure time is in H:i:s format
-                start_time = event_data['start']['time']
-                if len(start_time.split(':')) == 2:  # If time is in H:i format
-                    start_time += ':00'  # Add seconds
-                event_data['start_time'] = start_time
+                event_data['start_time'] = event_data['start']['time'] + ':00'  # Ensure H:i:s format
                 event_data['start_timezone'] = event_data['start']['timezone']
                 del event_data['start']
             
             if 'end' in event_data:
                 event_data['end_date'] = event_data['end']['date']
-                # Ensure time is in H:i:s format
-                end_time = event_data['end']['time']
-                if len(end_time.split(':')) == 2:  # If time is in H:i format
-                    end_time += ':00'  # Add seconds
-                event_data['end_time'] = end_time
+                event_data['end_time'] = event_data['end']['time'] + ':00'  # Ensure H:i:s format
                 event_data['end_timezone'] = event_data['end']['timezone']
                 del event_data['end']
-                
-            formatted_event_data = format_data_for_api(event_data)
-            print(f"Creating event with data: {formatted_event_data}")
             
-            # Create the event in target box office using the correct endpoint
             event_create_url = f"{TICKET_TAILOR_API_BASE}/event_series/{new_series_id}/events"
-            new_event_response = make_api_request('POST', event_create_url, target_api_key, data=formatted_event_data)
+            new_event_response = make_api_request('POST', event_create_url, target_api_key, data=event_data)
             new_event_response.raise_for_status()
             print(f"API Success (POST, target): Created new event in series {new_series_id}")
             new_event_data = new_event_response.json()
@@ -148,18 +124,12 @@ def copy_event_series(source_api_key, target_api_key, series_id):
 
             # Copy ticket types from the event data
             for ticket_type in event['ticket_types']:
+                # Create ticket type with all fields
                 ticket_type_data = {k: v for k, v in ticket_type.items() if k != 'id'}
-                ticket_type_data['event_series_id'] = new_series_id  # Use event series ID instead of event ID
-                
-                # Remove voucher_ids from ticket type data
-                if 'voucher_ids' in ticket_type_data:
-                    del ticket_type_data['voucher_ids']
-                    
-                formatted_ticket_type_data = format_data_for_api(ticket_type_data)
                 
                 # Create ticket type in the event series
                 ticket_type_create_url = f"{TICKET_TAILOR_API_BASE}/event_series/{new_series_id}/ticket_types"
-                make_api_request('POST', ticket_type_create_url, target_api_key, data=formatted_ticket_type_data).raise_for_status()
+                make_api_request('POST', ticket_type_create_url, target_api_key, data=ticket_type_data).raise_for_status()
                 print(f"API Success (POST, target): Created ticket type for event series {new_series_id}")
 
         return {"success": True, "new_series_id": new_series_id}
