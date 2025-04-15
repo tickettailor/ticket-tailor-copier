@@ -128,6 +128,23 @@ def copy_event_series(source_api_key, target_api_key, series_id):
                 # Create ticket type with all fields except voucher_ids
                 ticket_type_data = {k: v for k, v in ticket_type.items() if k not in ['id', 'voucher_ids']}
                 
+                # Validate and handle min_per_order and max_per_order
+                for field in ['min_per_order', 'max_per_order']:
+                    if field in ticket_type_data:
+                        try:
+                            value = int(ticket_type_data[field])
+                            if value < 1:
+                                ticket_type_data[field] = 1
+                            elif value > 500:
+                                ticket_type_data[field] = 500
+                        except (ValueError, TypeError):
+                            ticket_type_data[field] = 1
+                
+                # Ensure min_per_order is not greater than max_per_order
+                if 'min_per_order' in ticket_type_data and 'max_per_order' in ticket_type_data:
+                    if ticket_type_data['min_per_order'] > ticket_type_data['max_per_order']:
+                        ticket_type_data['min_per_order'] = ticket_type_data['max_per_order']
+                
                 # Create ticket type in the event series
                 ticket_type_create_url = f"{TICKET_TAILOR_API_BASE}/event_series/{new_series_id}/ticket_types"
                 make_api_request('POST', ticket_type_create_url, target_api_key, data=ticket_type_data).raise_for_status()
