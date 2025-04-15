@@ -149,7 +149,7 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             # Copy ticket types from the event data
             for ticket_type in event['ticket_types']:
                 ticket_type_data = {k: v for k, v in ticket_type.items() if k != 'id'}
-                ticket_type_data['event_id'] = new_event_id
+                ticket_type_data['event_series_id'] = new_series_id  # Use event series ID instead of event ID
                 
                 # Remove voucher_ids from ticket type data
                 if 'voucher_ids' in ticket_type_data:
@@ -157,10 +157,10 @@ def copy_event_series(source_api_key, target_api_key, series_id):
                     
                 formatted_ticket_type_data = format_data_for_api(ticket_type_data)
                 
-                # Create ticket type in the new event
-                ticket_type_create_url = f"{TICKET_TAILOR_API_BASE}/events/{new_event_id}/ticket_types"
+                # Create ticket type in the event series
+                ticket_type_create_url = f"{TICKET_TAILOR_API_BASE}/event_series/{new_series_id}/ticket_types"
                 make_api_request('POST', ticket_type_create_url, target_api_key, data=formatted_ticket_type_data).raise_for_status()
-                print(f"API Success (POST, target): Created ticket type for event {new_event_id}")
+                print(f"API Success (POST, target): Created ticket type for event series {new_series_id}")
 
         return {"success": True, "new_series_id": new_series_id}
     except requests.exceptions.RequestException as e:
