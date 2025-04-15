@@ -30,6 +30,8 @@ def get_event_series(source_api_key):
             return data['data']
         return data
     except requests.exceptions.RequestException as e:
+        if hasattr(e.response, 'text'):
+            return {"error": f"API Error: {e.response.text}"}
         return {"error": str(e)}
 
 def copy_event_series(source_api_key, target_api_key, series_id):
@@ -106,6 +108,8 @@ def copy_event_series(source_api_key, target_api_key, series_id):
 
         return {"success": True, "new_series_id": new_series_id}
     except requests.exceptions.RequestException as e:
+        if hasattr(e.response, 'text'):
+            return {"error": f"API Error: {e.response.text}"}
         return {"error": str(e)}
 
 @app.route('/')
