@@ -117,21 +117,33 @@ def copy_event_series(source_api_key, target_api_key, series_id):
 
         # Copy each event and its ticket types
         for event in events:
-            # Create the event in target box office with all fields except voucher_ids
-            event_data = {k: v for k, v in event.items() if k not in ['id', 'voucher_ids']}
+            # Create the event in target box office with only the allowed fields
+            event_data = {}
             
-            # Flatten date fields
-            if 'start' in event_data:
-                event_data['start_date'] = event_data['start']['date']
-                event_data['start_time'] = event_data['start']['time'] + ':00'  # Ensure H:i:s format
-                event_data['start_timezone'] = event_data['start']['timezone']
-                del event_data['start']
+            # Copy only the allowed fields
+            allowed_fields = {
+                'end_date': None,
+                'end_time': None,
+                'hidden': None,
+                'override_id': None,
+                'start_date': None,
+                'start_time': None,
+                'unavailable': None,
+                'unavailable_status': None
+            }
             
-            if 'end' in event_data:
-                event_data['end_date'] = event_data['end']['date']
-                event_data['end_time'] = event_data['end']['time'] + ':00'  # Ensure H:i:s format
-                event_data['end_timezone'] = event_data['end']['timezone']
-                del event_data['end']
+            # Flatten date fields and copy allowed fields
+            if 'start' in event:
+                event_data['start_date'] = event['start']['date']
+                event_data['start_time'] = event['start']['time'] + ':00'  # Ensure H:i:s format
+            if 'end' in event:
+                event_data['end_date'] = event['end']['date']
+                event_data['end_time'] = event['end']['time'] + ':00'  # Ensure H:i:s format
+            
+            # Copy other allowed fields if they exist
+            for field in allowed_fields:
+                if field in event:
+                    event_data[field] = event[field]
             
             event_create_url = f"{TICKET_TAILOR_API_BASE}/event_series/{new_series_id}/events"
             new_event_response = make_api_request('POST', event_create_url, target_api_key, data=event_data)
