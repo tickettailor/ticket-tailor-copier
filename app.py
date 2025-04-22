@@ -17,13 +17,33 @@ def get_auth_header(api_key):
 
 def make_api_request(method, url, api_key, **kwargs):
     """Make an API request with proper authentication"""
-    return requests.request(
+    # Log request details
+    print(f"\n=== API Request Details ===")
+    print(f"Method: {method}")
+    print(f"URL: {url}")
+    print(f"Headers: {get_auth_header(api_key)}")
+    if 'data' in kwargs:
+        print(f"Request Data: {kwargs['data']}")
+    if 'params' in kwargs:
+        print(f"Query Params: {kwargs['params']}")
+    print("========================\n")
+    
+    response = requests.request(
         method,
         url,
         auth=(api_key, ''),  # API key as username, empty password
         headers=get_auth_header(api_key),
         **kwargs
     )
+    
+    # Log response details
+    print(f"\n=== API Response Details ===")
+    print(f"Status Code: {response.status_code}")
+    print(f"Response Headers: {dict(response.headers)}")
+    print(f"Response Body: {response.text}")
+    print("========================\n")
+    
+    return response
 
 def format_data_for_api(data):
     """Format data to match API requirements"""
