@@ -115,48 +115,12 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         events_data = events_response.json()
         events = events_data['data'] if 'data' in events_data else events_data
 
-        # Copy each event and its ticket types
-        for event in events:
-            # Create the event in target box office with only the allowed fields
-            event_data = {}
+        # Get the ticket types from the first event (they should be the same for all events in the series)
+        if events and 'ticket_types' in events[0]:
+            ticket_types = events[0]['ticket_types']
             
-            # Copy only the allowed fields
-            allowed_fields = {
-                'end_date': None,
-                'end_time': None,
-                'hidden': None,
-                'override_id': None,
-                'start_date': None,
-                'start_time': None,
-                'unavailable': None,
-                'unavailable_status': None
-            }
-            
-            # Flatten date fields and copy allowed fields
-            if 'start' in event:
-                event_data['start_date'] = event['start']['date']
-                event_data['start_time'] = event['start']['time'] + ':00'  # Ensure H:i:s format
-            if 'end' in event:
-                event_data['end_date'] = event['end']['date']
-                event_data['end_time'] = event['end']['time'] + ':00'  # Ensure H:i:s format
-            
-            # Copy other allowed fields if they exist
-            for field in allowed_fields:
-                if field in event:
-                    event_data[field] = event[field]
-            
-            event_create_url = f"{TICKET_TAILOR_API_BASE}/event_series/{new_series_id}/events"
-            new_event_response = make_api_request('POST', event_create_url, target_api_key, data=event_data)
-            new_event_response.raise_for_status()
-            print(f"API Success (POST, target): Created new event in series {new_series_id}")
-            new_event_data = new_event_response.json()
-            if 'data' in new_event_data:
-                new_event_id = new_event_data['data']['id']
-            else:
-                new_event_id = new_event_data['id']
-
-            # Copy ticket types from the event data
-            for ticket_type in event['ticket_types']:
+            # Create each ticket type in the event series
+            for ticket_type in ticket_types:
                 # Create ticket type with all fields except voucher_ids
                 ticket_type_data = {k: v for k, v in ticket_type.items() if k not in ['id', 'voucher_ids']}
                 
@@ -196,6 +160,41 @@ def copy_event_series(source_api_key, target_api_key, series_id):
                 print(f"Debug: Creating ticket type at URL: {ticket_type_create_url}")
                 make_api_request('POST', ticket_type_create_url, target_api_key, data=ticket_type_data).raise_for_status()
                 print(f"API Success (POST, target): Created ticket type for event series {new_series_id}")
+
+        # Copy each event
+        for event in events:
+            # Create the event in target box office with only the allowed fields
+            event_data = {}
+            
+            # Copy only the allowed fields
+            allowed_fields = {
+                'end_date': None,
+                'end_time': None,
+                'hidden': None,
+                'override_id': None,
+                'start_date': None,
+                'start_time': None,
+                'unavailable': None,
+                'unavailable_status': None
+            }
+            
+            # Flatten date fields and copy allowed fields
+            if 'start' in event:
+                event_data['start_date'] = event['start']['date']
+                event_data['start_time'] = event['start']['time'] + ':00'  # Ensure H:i:s format
+            if 'end' in event:
+                event_data['end_date'] = event['end']['date']
+                event_data['end_time'] = event['end']['time'] + ':00'  # Ensure H:i:s format
+            
+            # Copy other allowed fields if they exist
+            for field in allowed_fields:
+                if field in event:
+                    event_data[field] = event[field]
+            
+            event_create_url = f"{TICKET_TAILOR_API_BASE}/event_series/{new_series_id}/events"
+            new_event_response = make_api_request('POST', event_create_url, target_api_key, data=event_data)
+            new_event_response.raise_for_status()
+            print(f"API Success (POST, target): Created new event in series {new_series_id}")
 
         return {"success": True, "new_series_id": new_series_id}
     except requests.exceptions.RequestException as e:
