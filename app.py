@@ -65,16 +65,47 @@ def format_data_for_api(data):
     return formatted_data
 
 def get_event_series(source_api_key):
-    """Fetch event series from source box office"""
+    """Fetch all event series from source box office, newest first.
+
+    The Ticket Tailor API returns event series in pages (oldest first).
+    Previously we only returned the first page in the API's default order,
+    which meant a newer event the user wanted to copy could be pushed off
+    the list entirely. We now walk every page and sort newest -> oldest so
+    the most recent series are always shown at the top and reachable.
+    """
     try:
         url = f"{TICKET_TAILOR_API_BASE}/event_series"
-        response = make_api_request('GET', url, source_api_key)
-        response.raise_for_status()
-        data = response.json()
-        # Handle pagination if needed
-        if 'data' in data:
-            return data['data']
-        return data
+        all_series = []
+        params = {'limit': 100}
+
+        while True:
+            response = make_api_request('GET', url, source_api_key, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+            page = data['data'] if isinstance(data, dict) and 'data' in data else data
+            if not page:
+                break
+
+            all_series.extend(page)
+
+            # Cursor pagination: request the next page using the last id we saw.
+            # Stop once a page returns fewer than the requested limit.
+            if len(page) < params['limit']:
+                break
+            params = {'limit': 100, 'starting_after': page[-1]['id']}
+
+        # Sort newest -> oldest by created_at (a unix timestamp on each series).
+        # Always return an int so mixed-type comparisons can't crash the sort;
+        # series with a missing/invalid created_at fall to the end.
+        def sort_key(series):
+            try:
+                return int(series.get('created_at'))
+            except (ValueError, TypeError):
+                return 0
+
+        all_series.sort(key=sort_key, reverse=True)
+        return all_series
     except requests.exceptions.RequestException as e:
         if hasattr(e.response, 'text'):
             error_msg = f"API Error: {e.response.text}"
