@@ -188,11 +188,37 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         if events and 'ticket_types' in events[0]:
             ticket_types = events[0]['ticket_types']
             
+            # Fields the ticket-type create endpoint accepts, per the API docs.
+            # Omitted on purpose:
+            #  - status: it's an enum, but a GET can return a state value the
+            #    create endpoint won't accept (the same trap that made the
+            #    series copy 400 on "MEMBERS_ONLY"). Let the target default it.
+            #  - discounts, group_id, voucher_ids: these are IDs that belong to
+            #    the source box office and don't map to the target.
+            allowed_ticket_type_fields = [
+                'name',
+                'description',
+                'price',
+                'quantity',
+                'min_per_order',
+                'max_per_order',
+                'booking_fee',
+                'access_code',
+                'hide_after',
+                'hide_until',
+                'hide_when_sold_out',
+                'show_quantity_remaining',
+                'show_quantity_remaining_less_than',
+            ]
+
             # Create each ticket type in the event series
             for ticket_type in ticket_types:
-                # Create ticket type with all fields except voucher_ids
-                ticket_type_data = {k: v for k, v in ticket_type.items() if k not in ['id', 'voucher_ids']}
-                
+                ticket_type_data = {
+                    field: ticket_type[field]
+                    for field in allowed_ticket_type_fields
+                    if ticket_type.get(field) is not None
+                }
+
                 # Debug log the ticket type data before validation
                 print(f"Debug: Original ticket type data: {ticket_type_data}")
                 
@@ -235,12 +261,16 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             # Create the event in target box office with only the allowed fields
             event_data = {}
             
-            # Copy only the allowed fields
+            # Copy only the fields the event create endpoint accepts.
+            # override_id is deliberately omitted: it points at an override
+            # object in the source box office, which doesn't exist in the
+            # target. unavailable_status is a free-text message (not an enum),
+            # so it's safe to copy as-is.
             allowed_fields = {
                 'end_date': None,
                 'end_time': None,
                 'hidden': None,
-                'override_id': None,
+                'online_link': None,
                 'start_date': None,
                 'start_time': None,
                 'unavailable': None,
