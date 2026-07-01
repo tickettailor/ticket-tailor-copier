@@ -137,34 +137,35 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         # content fields avoids that and makes the copy predictable.
         create_url = f"{TICKET_TAILOR_API_BASE}/event_series"
 
-        # Top-level scalar fields the create endpoint accepts.
+        # Fields the create endpoint accepts, per the Ticket Tailor API docs.
+        # voucher_ids is intentionally omitted: voucher IDs belong to the
+        # source box office and don't map to the target. Everything not listed
+        # here (e.g. "status", "created_at", "url") is read-only/derived and
+        # must not be sent.
         allowed_series_fields = [
             'name',
             'description',
-            'private',
-            'online_event',
-            'timezone',
-            'call_to_action',
+            'currency',
+            'venue',
+            'postal_code',
+            'country',
+            'access_code',
+            'online_platform',
+            'max_tickets_sold_per_occurrence',
+            'tickets_available_at',
+            'tickets_available_at_message',
+            'tickets_unavailable_at',
+            'tickets_unavailable_at_message',
+            'waitlist_active',
+            'waitlist_call_to_action',
+            'waitlist_event_page_text',
+            'waitlist_confirmation_message',
         ]
-        # Nested objects the endpoint expects as bracketed form keys,
-        # e.g. venue[name]. The old code sent these as raw dicts, which the
-        # API ignored, so they were never actually copied.
-        allowed_series_nested = {
-            'venue': ['name', 'postal_code'],
-            'images': ['header', 'thumbnail', 'logo'],
-        }
-
         series_create_data = {
             field: series_data[field]
             for field in allowed_series_fields
             if series_data.get(field) is not None
         }
-        for parent, children in allowed_series_nested.items():
-            nested = series_data.get(parent)
-            if isinstance(nested, dict):
-                for child in children:
-                    if nested.get(child) is not None:
-                        series_create_data[f"{parent}[{child}]"] = nested[child]
 
         create_response = make_api_request('POST', create_url, target_api_key, data=series_create_data)
         create_response.raise_for_status()
