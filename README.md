@@ -74,18 +74,48 @@ Error messages will be displayed in the web interface when issues occur.
 
 ## Deployment
 
-For production deployment, it's recommended to:
+This app is hosted on [Render](https://render.com) as a web service, configured
+by [`render.yaml`](render.yaml) in the repo root.
 
-1. Use Gunicorn as the WSGI server:
+### How deploys happen
+
+**Merging to `main` is the deploy.** Render watches the `main` branch and
+auto-deploys every new commit — there is no separate release step. The typical
+flow is:
+
+1. Push your work to a feature branch and open a pull request against `main`.
+2. Once the PR is reviewed and merged, Render automatically:
+   - runs the build command: `pip install -r requirements.txt`
+   - restarts the service with the start command: `gunicorn app:app`
+3. The new version goes live once the build succeeds and health checks pass.
+
+Nothing needs to be run locally to ship — the merge triggers everything.
+
+### Watching / triggering a deploy
+
+- **Watch:** open the service in the [Render dashboard](https://dashboard.render.com)
+  → `ticket-tailor-copier` → the **Events** and **Logs** tabs show each deploy,
+  its commit, and a "Live" status when it finishes.
+- **Manual deploy:** if you need to redeploy without a new commit (or auto-deploy
+  is off), use **Manual Deploy → Deploy latest commit** in the dashboard.
+- **Auto-deploy toggle:** `autoDeploy` isn't set in `render.yaml`, so it uses
+  Render's default (**on**). It can be turned off under **Settings → Auto-Deploy**.
+
+### Configuration
+
+- Runtime settings live in [`render.yaml`](render.yaml) (Python version, build and
+  start commands).
+- Sensitive values should be set as environment variables in the Render dashboard
+  (**Environment** tab), not committed to the repo. The app loads a local `.env`
+  file via `python-dotenv` for development.
+
+### Running the production server locally
+
+To mirror the production setup on your machine:
+
 ```bash
 gunicorn app:app
 ```
-
-2. Set up a reverse proxy (e.g., Nginx) in front of the application
-
-3. Use environment variables for sensitive configuration
-
-4. Enable HTTPS for secure API key transmission
 
 ## Security Considerations
 
