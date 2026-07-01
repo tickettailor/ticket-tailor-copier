@@ -126,9 +126,47 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         if 'data' in series_data:
             series_data = series_data['data']
 
-        # Create the event series in target box office with all fields except voucher_ids
+        # Create the event series in the target box office.
+        #
+        # Only forward the fields the create endpoint accepts. The source
+        # series object also carries read-only/derived fields (e.g. "status",
+        # "created_at", "url") that must not be sent: "status" is validated as
+        # an enum, and a source value like "MEMBERS_ONLY" is a state a series
+        # can be *in* but not a value you're allowed to *set*, so echoing it
+        # back triggers a 400 VALIDATION_ERROR. Whitelisting the writable
+        # content fields avoids that and makes the copy predictable.
         create_url = f"{TICKET_TAILOR_API_BASE}/event_series"
-        series_create_data = {k: v for k, v in series_data.items() if k not in ['id', 'voucher_ids']}
+
+        # Fields the create endpoint accepts, per the Ticket Tailor API docs.
+        # voucher_ids is intentionally omitted: voucher IDs belong to the
+        # source box office and don't map to the target. Everything not listed
+        # here (e.g. "status", "created_at", "url") is read-only/derived and
+        # must not be sent.
+        allowed_series_fields = [
+            'name',
+            'description',
+            'currency',
+            'venue',
+            'postal_code',
+            'country',
+            'access_code',
+            'online_platform',
+            'max_tickets_sold_per_occurrence',
+            'tickets_available_at',
+            'tickets_available_at_message',
+            'tickets_unavailable_at',
+            'tickets_unavailable_at_message',
+            'waitlist_active',
+            'waitlist_call_to_action',
+            'waitlist_event_page_text',
+            'waitlist_confirmation_message',
+        ]
+        series_create_data = {
+            field: series_data[field]
+            for field in allowed_series_fields
+            if series_data.get(field) is not None
+        }
+
         create_response = make_api_request('POST', create_url, target_api_key, data=series_create_data)
         create_response.raise_for_status()
         print(f"API Success (POST, target): Created new event series")
@@ -150,11 +188,37 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         if events and 'ticket_types' in events[0]:
             ticket_types = events[0]['ticket_types']
             
+            # Fields the ticket-type create endpoint accepts, per the API docs.
+            # Omitted on purpose:
+            #  - status: it's an enum, but a GET can return a state value the
+            #    create endpoint won't accept (the same trap that made the
+            #    series copy 400 on "MEMBERS_ONLY"). Let the target default it.
+            #  - discounts, group_id, voucher_ids: these are IDs that belong to
+            #    the source box office and don't map to the target.
+            allowed_ticket_type_fields = [
+                'name',
+                'description',
+                'price',
+                'quantity',
+                'min_per_order',
+                'max_per_order',
+                'booking_fee',
+                'access_code',
+                'hide_after',
+                'hide_until',
+                'hide_when_sold_out',
+                'show_quantity_remaining',
+                'show_quantity_remaining_less_than',
+            ]
+
             # Create each ticket type in the event series
             for ticket_type in ticket_types:
-                # Create ticket type with all fields except voucher_ids
-                ticket_type_data = {k: v for k, v in ticket_type.items() if k not in ['id', 'voucher_ids']}
-                
+                ticket_type_data = {
+                    field: ticket_type[field]
+                    for field in allowed_ticket_type_fields
+                    if ticket_type.get(field) is not None
+                }
+
                 # Debug log the ticket type data before validation
                 print(f"Debug: Original ticket type data: {ticket_type_data}")
                 
@@ -197,12 +261,16 @@ def copy_event_series(source_api_key, target_api_key, series_id):
             # Create the event in target box office with only the allowed fields
             event_data = {}
             
-            # Copy only the allowed fields
+            # Copy only the fields the event create endpoint accepts.
+            # override_id is deliberately omitted: it points at an override
+            # object in the source box office, which doesn't exist in the
+            # target. unavailable_status is a free-text message (not an enum),
+            # so it's safe to copy as-is.
             allowed_fields = {
                 'end_date': None,
                 'end_time': None,
                 'hidden': None,
-                'override_id': None,
+                'online_link': None,
                 'start_date': None,
                 'start_time': None,
                 'unavailable': None,
