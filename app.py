@@ -95,16 +95,14 @@ def get_event_series(source_api_key):
                 break
             params = {'limit': 100, 'starting_after': page[-1]['id']}
 
-        # Sort newest -> oldest. created_at is a unix timestamp on each series;
-        # fall back to id ordering if it is missing.
+        # Sort newest -> oldest by created_at (a unix timestamp on each series).
+        # Always return an int so mixed-type comparisons can't crash the sort;
+        # series with a missing/invalid created_at fall to the end.
         def sort_key(series):
-            created = series.get('created_at')
-            if created is not None:
-                try:
-                    return int(created)
-                except (ValueError, TypeError):
-                    pass
-            return series.get('id', '')
+            try:
+                return int(series.get('created_at'))
+            except (ValueError, TypeError):
+                return 0
 
         all_series.sort(key=sort_key, reverse=True)
         return all_series
