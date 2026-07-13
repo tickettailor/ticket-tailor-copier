@@ -45,6 +45,25 @@ def make_api_request(method, url, api_key, **kwargs):
     
     return response
 
+def is_present(value):
+    """Whether a source field carries a real value worth forwarding.
+
+    The create endpoints validate the *value* of a field once it's sent, so
+    an empty placeholder is worse than an omitted field. In particular the
+    source GET can return an optional timestamp like ``tickets_available_at``
+    as an empty string; form-encoding that sends ``tickets_available_at=``,
+    which Ticket Tailor reads back as ``null`` and rejects with
+    "Value must be a UNIX timestamp in seconds." Treating None and empty
+    strings/collections as absent lets us skip those fields entirely.
+    """
+    if value is None:
+        return False
+    if isinstance(value, str) and value.strip() == '':
+        return False
+    if isinstance(value, (dict, list, tuple)) and len(value) == 0:
+        return False
+    return True
+
 def format_data_for_api(data):
     """Format data to match API requirements"""
     formatted_data = {}
@@ -164,8 +183,18 @@ def copy_event_series(source_api_key, target_api_key, series_id):
         series_create_data = {
             field: series_data[field]
             for field in allowed_series_fields
-            if series_data.get(field) is not None
+            if is_present(series_data.get(field))
         }
+
+        # The availability *_message fields are only meaningful alongside
+        # their timestamp. If a timestamp was absent/empty on the source it
+        # won't be in series_create_data, so drop the orphaned message too --
+        # otherwise Ticket Tailor rejects the create because the required
+        # timestamp is missing.
+        if 'tickets_available_at' not in series_create_data:
+            series_create_data.pop('tickets_available_at_message', None)
+        if 'tickets_unavailable_at' not in series_create_data:
+            series_create_data.pop('tickets_unavailable_at_message', None)
 
         create_response = make_api_request('POST', create_url, target_api_key, data=series_create_data)
         create_response.raise_for_status()
@@ -216,7 +245,7 @@ def copy_event_series(source_api_key, target_api_key, series_id):
                 ticket_type_data = {
                     field: ticket_type[field]
                     for field in allowed_ticket_type_fields
-                    if ticket_type.get(field) is not None
+                    if is_present(ticket_type.get(field))
                 }
 
                 # Debug log the ticket type data before validation
